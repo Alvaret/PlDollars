@@ -36,6 +36,80 @@ function normalize(data) {
   })).filter((item) => !Number.isNaN(item.date.getTime()))
 }
 
+function normalizeFinancings(data) {
+  return (data?.financiaciones ?? []).map((financing, index) => ({
+    id: `${financing.nombre}-${index}`,
+    name: financing.nombre || 'Financiación sin nombre',
+    payments: (financing.pagos ?? []).map((payment, paymentIndex) => ({
+      id: `${index}-${paymentIndex}`,
+      year: Number(payment.anio),
+      month: Number(payment.mes),
+      amount: Math.abs(number(payment.importe)),
+      paid: Boolean(payment.pagado),
+    })),
+  })).filter((financing) => financing.payments.some((payment) => !payment.paid && payment.amount > 0))
+}
+
+function financingTotals(financing) {
+  return financing.payments.reduce((totals, payment) => {
+    totals.total += payment.amount
+    if (payment.paid) totals.paid += payment.amount
+    else totals.remaining += payment.amount
+    return totals
+  }, { total: 0, paid: 0, remaining: 0 })
+}
+
+function paymentDate(payment) {
+  return monthFormat.format(new Date(payment.year, payment.month - 1, 1))
+}
+
+function FinancingCard({ financing, onSelect }) {
+  const totals = financingTotals(financing)
+  const pending = financing.payments.filter((payment) => !payment.paid)
+  const progress = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0
+  return <button className="financing-card" onClick={() => onSelect(financing)}>
+    <span className="financing-card-top"><span className="financing-icon">€</span><span className="card-arrow">↗</span></span>
+    <span className="financing-name">{financing.name}</span>
+    <span className="financing-label">Queda por pagar</span>
+    <strong className="financing-remaining">{money.format(totals.remaining)}</strong>
+    <span className="progress-track"><span style={{ width: `${progress}%` }} /></span>
+    <span className="financing-meta"><span>{pending.length} {pending.length === 1 ? 'pago pendiente' : 'pagos pendientes'}</span><span>{progress}% pagado</span></span>
+  </button>
+}
+
+function FinancingList({ financings, onSelect, status, error, onRetry }) {
+  const remaining = financings.reduce((sum, financing) => sum + financingTotals(financing).remaining, 0)
+  return <>
+    <section className="financing-overview">
+      <div><p className="eyebrow">PLAN DE PAGOS</p><h1>Financiaciones</h1><p className="subtitle">Todo lo que tienes pendiente, en un solo vistazo.</p></div>
+      <div className="financing-actions"><button className="refresh" onClick={onRetry} disabled={status === 'loading'} aria-label="Actualizar financiaciones">↻ <span>Actualizar</span></button><article className="remaining-total"><span>Total pendiente</span><strong>{money.format(remaining)}</strong><small>{financings.length} financiaciones activas</small></article></div>
+    </section>
+    {status === 'loading' && <div className="state">Cargando financiaciones…</div>}
+    {status === 'error' && <div className="state error"><strong>No se pudieron cargar las financiaciones.</strong><span>{error}</span><button onClick={onRetry}>Reintentar</button></div>}
+    {status === 'ready' && <section className="financing-grid" aria-label="Financiaciones activas">
+      {financings.map((financing) => <FinancingCard key={financing.id} financing={financing} onSelect={onSelect} />)}
+      {!financings.length && <div className="state">No tienes financiaciones pendientes.</div>}
+    </section>}
+  </>
+}
+
+function FinancingDetail({ financing, onBack }) {
+  const totals = financingTotals(financing)
+  const progress = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0
+  return <>
+    <button className="back-button" onClick={onBack}>← <span>Volver a financiaciones</span></button>
+    <section className="detail-heading"><div><p className="eyebrow">DETALLE DE FINANCIACIÓN</p><h1>{financing.name}</h1><p className="subtitle">Seguimiento de todos tus pagos.</p></div><div className="detail-total"><span>Pendiente</span><strong>{money.format(totals.remaining)}</strong></div></section>
+    <section className="detail-summary">
+      <article><span>Importe total</span><strong>{money.format(totals.total)}</strong></article>
+      <article><span>Ya pagado</span><strong className="paid-value">{money.format(totals.paid)}</strong></article>
+      <article><span>Progreso</span><strong>{progress}%</strong></article>
+    </section>
+    <section className="payments-panel"><div className="payments-heading"><div><h2>Calendario de pagos</h2><p>{financing.payments.length} cuotas en total</p></div><span className="status-pill">{progress === 100 ? 'Completada' : 'En curso'}</span></div><div className="payment-list">
+      {financing.payments.map((payment) => <div className={`payment-row ${payment.paid ? 'is-paid' : ''}`} key={payment.id}><span className="payment-check">{payment.paid ? '✓' : '·'}</span><span className="payment-date">{paymentDate(payment)}</span><span className="payment-status">{payment.paid ? 'Pagado' : 'Pendiente'}</span><strong>{money.format(payment.amount)}</strong></div>)}
+    </div></section>
+  </>
+}
+
 function App() {
   const [expenses, setExpenses] = useState([])
   const [status, setStatus] = useState('loading')
@@ -43,6 +117,11 @@ function App() {
   const [category, setCategory] = useState('Todas')
   const [query, setQuery] = useState('')
   const [selectedMonth, setSelectedMonth] = useState('')
+  const [financings, setFinancings] = useState([])
+  const [financingStatus, setFinancingStatus] = useState('loading')
+  const [financingError, setFinancingError] = useState('')
+  const [view, setView] = useState('expenses')
+  const [selectedFinancing, setSelectedFinancing] = useState(null)
 
   const load = async () => {
     setStatus('loading'); setError('')
@@ -62,6 +141,19 @@ function App() {
   }
   useEffect(() => { load() }, [])
 
+  const loadFinancings = async () => {
+    setFinancingStatus('loading'); setFinancingError('')
+    try {
+      const res = await fetch('/api/financings')
+      if (!res.ok) throw new Error('El servidor respondió con un error.')
+      setFinancings(normalizeFinancings(await res.json()))
+      setFinancingStatus('ready')
+    } catch (err) {
+      setFinancingError(err.message || 'No se han podido cargar las financiaciones.'); setFinancingStatus('error')
+    }
+  }
+  useEffect(() => { loadFinancings() }, [])
+
   const months = useMemo(() => [...new Map(expenses.map((item) => [monthKey(item.date), item.date])).entries()]
     .sort(([, a], [, b]) => b - a), [expenses])
   const selectedIndex = months.findIndex(([key]) => key === selectedMonth)
@@ -80,6 +172,8 @@ function App() {
   }
 
   return <main className="shell">
+    <nav className="main-nav" aria-label="Secciones"><span className="brand-mark">PL</span><div><button className={view === 'expenses' ? 'active' : ''} onClick={() => { setView('expenses'); setSelectedFinancing(null) }}>Gastos</button><button className={view === 'financings' ? 'active' : ''} onClick={() => { setView('financings'); setSelectedFinancing(null) }}>Financiaciones</button></div></nav>
+    {view === 'financings' ? (selectedFinancing ? <FinancingDetail financing={selectedFinancing} onBack={() => setSelectedFinancing(null)} /> : <FinancingList financings={financings} onSelect={setSelectedFinancing} status={financingStatus} error={financingError} onRetry={loadFinancings} />) : <>
     <header>
       <div><p className="eyebrow">FINANZAS PERSONALES</p><h1>Control de gastos</h1><p className="subtitle">Tu actividad financiera, clara y al día.</p></div>
       <button className="refresh" onClick={load} disabled={status === 'loading'} aria-label="Actualizar gastos">↻ <span>Actualizar</span></button>
@@ -108,6 +202,7 @@ function App() {
         {!visible.length && <tr><td colSpan="4" className="empty">No hay gastos que coincidan con este filtro.</td></tr>}
       </tbody></table></div>}
     </section>
+    </>}
   </main>
 }
 
