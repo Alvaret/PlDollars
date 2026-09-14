@@ -38,6 +38,14 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } th { color: 
 .status-pill { display: inline-flex; align-items: center; justify-content: center; min-width: 68px; padding: 5px 8px; border-radius: 999px; font-size: .64rem; font-weight: 700; }
 .status-pill.ok { background: #eaf7ef; color: #2f7d58; }
 .status-pill.pending { background: #fff0dd; color: #a15d18; }
+.projection-panel { margin-bottom: 16px; border: 1px solid #dfe5f3; border-radius: 16px; background: #f8faff; overflow: hidden; }
+.projection-list { display: grid; }
+.projection-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 16px; padding: 14px 18px; border-top: 1px solid #e9edf6; }
+.projection-row span { color: #68758e; font-size: .82rem; text-transform: capitalize; }
+.projection-row strong { color: #68758e; font-size: .78rem; }
+.projection-row b { min-width: 94px; color: #273b67; font-size: .9rem; text-align: right; }
+.payment-row.is-adjustment { background: #f6f2ff; }
+.payment-row.is-adjustment .payment-check, .payment-row.is-adjustment .payment-status, .payment-row.is-adjustment strong { color: #6654ad; }
 
 .monthly-selector { display: grid; gap: 7px; min-width: 190px; }
 .monthly-controls { display: flex; align-items: end; gap: 10px; }
@@ -116,4 +124,7 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } th { color: 
 	.detail-summary article:last-child { grid-column: 1 / -1; }
 	.payments-panel { overflow: hidden; }
 	.payment-row { min-height: 68px; }
+	.projection-row { grid-template-columns: 1fr auto; gap: 6px 12px; padding: 13px 15px; }
+	.projection-row strong { grid-column: 2; grid-row: 1; }
+	.projection-row b { grid-column: 1 / -1; min-width: 0; text-align: left; font-size: .82rem; }
 }

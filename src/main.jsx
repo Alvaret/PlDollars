@@ -61,11 +61,11 @@ function normalizePlanCollection(data, key) {
 function normalizeSavings(data) {
   const savings = normalizePlanCollection(data, 'ahorra2').map((item) => ({
     ...item,
-    payments: item.payments.map((payment) => ({ ...payment, source: 'saving' })),
+    payments: item.payments.map((payment) => ({ ...payment, id: `saving-${payment.id}`, source: 'saving' })),
   }))
   const adjustments = normalizePlanCollection(data, 'ajustesahorra2').map((item) => ({
     ...item,
-    payments: item.payments.map((payment) => ({ ...payment, source: 'adjustment' })),
+    payments: item.payments.map((payment) => ({ ...payment, id: `adjustment-${payment.id}`, source: 'adjustment' })),
   }))
   const merged = new Map()
 
@@ -103,6 +103,30 @@ function savingsStats(plan) {
     }
     return stats
   }, { total: 0, paid: 0, remaining: 0, accumulated: 0 })
+}
+
+function savingsProjection(plan) {
+  const currentKey = monthKey(new Date())
+  const baseline = savingsStats(plan).accumulated
+  const months = new Map()
+
+  plan.payments.forEach((payment) => {
+    const key = `${payment.year}-${String(payment.month).padStart(2, '0')}`
+    if (payment.source !== 'saving' || payment.paid || key < currentKey) return
+    const month = months.get(key) ?? {
+      key,
+      label: paymentDate(payment),
+      amount: 0,
+    }
+    month.amount += payment.amount
+    months.set(key, month)
+  })
+
+  let projected = baseline
+  return [...months.values()].sort((a, b) => a.key.localeCompare(b.key)).map((month) => ({
+    ...month,
+    projected: projected += month.amount,
+  }))
 }
 
 function paymentDate(payment) {
@@ -319,18 +343,19 @@ function PlanList({ title, items, onSelect, status, error, onRetry }) {
 }
 
 function PlanDetail({ title, plan, onBack }) {
-  const totals = planTotals(plan)
+  const isSavings = title === 'Ahorro'
+  const totals = isSavings ? savingsStats(plan) : planTotals(plan)
   const progress = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0
+  const projection = isSavings ? savingsProjection(plan) : []
   return <>
     <button className="back-button" onClick={onBack}>← <span>Volver a {title.toLowerCase()}</span></button>
-    <section className="detail-heading"><div><p className="eyebrow">DETALLE DE {title.toUpperCase()}</p><h1>{plan.name}</h1><p className="subtitle">Seguimiento de todos tus pagos.</p></div><div className="detail-total"><span>Pendiente</span><strong>{money.format(totals.remaining)}</strong></div></section>
+    <section className="detail-heading"><div><p className="eyebrow">DETALLE DE {title.toUpperCase()}</p><h1>{plan.name}</h1><p className="subtitle">{isSavings ? 'Ahorro acumulado y proyección si mantienes tus aportaciones.' : 'Seguimiento de todos tus pagos.'}</p></div><div className="detail-total"><span>{isSavings ? 'Ahorrado tras ajuste' : 'Pendiente'}</span><strong>{money.format(isSavings ? totals.accumulated : totals.remaining)}</strong></div></section>
     <section className="detail-summary">
-      <article><span>Importe total</span><strong>{money.format(totals.total)}</strong></article>
-      <article><span>Ya pagado</span><strong className="paid-value">{money.format(totals.paid)}</strong></article>
-      <article><span>Progreso</span><strong>{progress}%</strong></article>
+      {isSavings ? <><article><span>Ahorrado real</span><strong className="paid-value">{money.format(totals.accumulated)}</strong></article><article><span>Próxima aportación</span><strong>{money.format(projection[0]?.amount ?? 0)}</strong></article><article><span>Meses proyectados</span><strong>{projection.length}</strong></article></> : <><article><span>Importe total</span><strong>{money.format(totals.total)}</strong></article><article><span>Ya pagado</span><strong className="paid-value">{money.format(totals.paid)}</strong></article><article><span>Progreso</span><strong>{progress}%</strong></article></>}
     </section>
+    {isSavings && <section className="projection-panel"><div className="payments-heading"><div><h2>Proyección</h2><p>Cuánto tendrías acumulado si cumples cada aportación.</p></div><span className="status-pill ok">Tras ajustes</span></div><div className="projection-list">{projection.map((month) => <div className="projection-row" key={month.key}><span>{month.label}</span><strong>+{money.format(month.amount)}</strong><b>{money.format(month.projected)}</b></div>)}{!projection.length && <div className="empty">No hay aportaciones futuras configuradas.</div>}</div></section>}
     <section className="payments-panel"><div className="payments-heading"><div><h2>Calendario de pagos</h2><p>{plan.payments.length} cuotas en total</p></div><span className="status-pill">{progress === 100 ? 'Completada' : 'En curso'}</span></div><div className="payment-list">
-      {plan.payments.map((payment) => <div className={`payment-row ${payment.paid ? 'is-paid' : ''}`} key={payment.id}><span className="payment-check">{payment.paid ? '✓' : '·'}</span><span className="payment-date">{paymentDate(payment)}</span><span className="payment-status">{payment.paid ? 'Pagado' : 'Pendiente'}</span><strong>{money.format(payment.amount)}</strong></div>)}
+      {plan.payments.map((payment) => { const adjustment = payment.source === 'adjustment'; const value = adjustment ? payment.signedAmount : payment.amount; return <div className={`payment-row ${payment.paid ? 'is-paid' : ''} ${adjustment ? 'is-adjustment' : ''}`} key={payment.id}><span className="payment-check">{adjustment ? '↔' : payment.paid ? '✓' : '·'}</span><span className="payment-date">{paymentDate(payment)}</span><span className="payment-status">{adjustment ? 'Ajuste aplicado' : payment.paid ? 'Pagado' : 'Pendiente'}</span><strong>{money.format(value)}</strong></div> })}
     </div></section>
   </>
 }
