@@ -52,6 +52,7 @@ function normalizePlanCollection(data, key) {
       year: Number(payment.anio),
       month: Number(payment.mes),
       amount: Math.abs(number(payment.importe)),
+      signedAmount: number(payment.importe),
       paid: Boolean(payment.pagado),
     })),
   })).filter((entry) => entry.payments.length)
@@ -85,6 +86,23 @@ function planTotals(plan) {
     else totals.remaining += payment.amount
     return totals
   }, { total: 0, paid: 0, remaining: 0 })
+}
+
+function savingsStats(plan) {
+  return plan.payments.reduce((stats, payment) => {
+    if (payment.source === 'adjustment') {
+      stats.accumulated += payment.signedAmount
+    } else {
+      stats.total += payment.amount
+      if (payment.paid) {
+        stats.paid += payment.amount
+        stats.accumulated += payment.amount
+      } else {
+        stats.remaining += payment.amount
+      }
+    }
+    return stats
+  }, { total: 0, paid: 0, remaining: 0, accumulated: 0 })
 }
 
 function paymentDate(payment) {
@@ -125,7 +143,7 @@ function buildMonthlySummary(planData, expenses) {
 
     if (entry.income) current.income += entry.amount
     else if (entry.saving) {
-      if (entry.paid) current.saving += entry.amount
+      if (entry.adjustment || entry.paid) current.saving += entry.amount
       if (!entry.adjustment) {
         current.items.push(entry)
         current.outgoing += entry.amount
@@ -188,7 +206,7 @@ function buildMonthlySummary(planData, expenses) {
     plan.payments.forEach((payment) => addEntry(payment.year, payment.month, {
       name: plan.name,
       type: 'Ahorro',
-      amount: payment.amount,
+      amount: payment.source === 'adjustment' ? payment.signedAmount : payment.amount,
       paid: Boolean(payment.paid),
       saving: true,
       adjustment: payment.source === 'adjustment',
@@ -268,16 +286,16 @@ function MonthlyOverview({ planData, expenses = [] }) {
 }
 
 function PlanCard({ plan, onSelect, title }) {
-  const totals = planTotals(plan)
-  const pending = plan.payments.filter((payment) => !payment.paid)
-  const progress = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0
   const isSavings = title === 'Ahorro'
+  const totals = isSavings ? savingsStats(plan) : planTotals(plan)
+  const pending = plan.payments.filter((payment) => !payment.paid && payment.source !== 'adjustment')
+  const progress = totals.total ? Math.round((totals.paid / totals.total) * 100) : 0
 
   return <button className="financing-card" onClick={() => onSelect(plan)}>
     <span className="financing-card-top"><span className="financing-icon">€</span><span className="card-arrow">↗</span></span>
     <span className="financing-name">{plan.name}</span>
     <span className="financing-label">{isSavings ? 'Ahorrado después del ajuste' : 'Queda por pagar'}</span>
-    <strong className="financing-remaining">{money.format(isSavings ? totals.paid : totals.remaining)}</strong>
+    <strong className="financing-remaining">{money.format(isSavings ? totals.accumulated : totals.remaining)}</strong>
     <span className="progress-track"><span style={{ width: `${progress}%` }} /></span>
     <span className="financing-meta"><span>{pending.length} {pending.length === 1 ? 'pago pendiente' : 'pagos pendientes'}</span><span>{progress}% pagado</span></span>
   </button>
@@ -285,7 +303,7 @@ function PlanCard({ plan, onSelect, title }) {
 
 function PlanList({ title, items, onSelect, status, error, onRetry }) {
   const isSavings = title === 'Ahorro'
-  const remaining = items.reduce((sum, plan) => sum + planTotals(plan)[isSavings ? 'paid' : 'remaining'], 0)
+  const remaining = items.reduce((sum, plan) => sum + (isSavings ? savingsStats(plan).accumulated : planTotals(plan).remaining), 0)
   return <>
     <section className="financing-overview">
       <div><p className="eyebrow">PLAN DE PAGOS</p><h1>{title}</h1><p className="subtitle">Todo lo que tienes pendiente, en un solo vistazo.</p></div>
@@ -353,10 +371,15 @@ function App() {
     setPlanStatus((current) => ({ ...current, [tabId]: 'loading' }))
     setPlanError((current) => ({ ...current, [tabId]: '' }))
     try {
-      const res = await fetch(tab.endpoint)
-      if (!res.ok) throw new Error('El servidor respondió con un error.')
-      const raw = await res.json()
-      const items = tab.secondaryKey ? normalizeSavings(raw) : normalizePlanCollection(raw, tab.key)
+      const responses = await Promise.all([
+        fetch(tab.endpoint),
+        ...(tab.secondaryKey ? [fetch(`/api/${tab.secondaryKey}`)] : []),
+      ])
+      if (responses.some((res) => !res.ok)) throw new Error('El servidor respondió con un error.')
+      const payloads = await Promise.all(responses.map((res) => res.json()))
+      const items = tab.secondaryKey
+        ? normalizeSavings({ [tab.key]: payloads[0]?.[tab.key] ?? [], [tab.secondaryKey]: payloads[1]?.[tab.secondaryKey] ?? [] })
+        : normalizePlanCollection(payloads[0], tab.key)
       setPlanData((current) => ({ ...current, [tabId]: items }))
       setPlanStatus((current) => ({ ...current, [tabId]: 'ready' }))
     } catch (err) {
