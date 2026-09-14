@@ -2,11 +2,12 @@ import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
 const BASE_ENDPOINT = 'https://script.google.com/macros/s/AKfycbwDPjzcNhjT8dfAf6CN3Oai2CUPx1iOo3z69UweD43fzsVgJoq_MUf1_mc4LBNIOghb/exec'
+const LEGACY_EXPENSES_ENDPOINT = 'https://script.google.com/macros/s/AKfycbzzH23MGdZn6Re01YKDMfnvvmJA-ITld7Hl8ksgild_ersSk9t4ypzHF9AhjSBkDEiS/exec'
 
 export default defineConfig(({ mode }) => {
   const env = loadEnv(mode, '.', '')
   const routes = {
-    expenses: env.EXPENSES_API_URL || `${BASE_ENDPOINT}?accion=gastosr2`,
+    expenses: env.EXPENSES_API_URL || LEGACY_EXPENSES_ENDPOINT,
     financings: env.FINANCINGS_API_URL || `${BASE_ENDPOINT}?accion=financiaciones`,
     gastosr2: `${BASE_ENDPOINT}?accion=gastosr2`,
     gastosplani2: `${BASE_ENDPOINT}?accion=gastosplani2`,

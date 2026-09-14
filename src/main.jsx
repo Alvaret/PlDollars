@@ -91,7 +91,7 @@ function paymentDate(payment) {
   return monthFormat.format(new Date(payment.year, payment.month - 1, 1))
 }
 
-function buildMonthlySummary(planData) {
+function buildMonthlySummary(planData, expenses) {
   const buckets = new Map()
   const currentDate = new Date()
   const currentKey = `${currentDate.getFullYear()}-${String(currentDate.getMonth() + 1).padStart(2, '0')}`
@@ -103,6 +103,8 @@ function buildMonthlySummary(planData) {
     paid: 0,
     pending: 0,
     saving: 0,
+    expenses: [],
+    expenseTotal: 0,
     items: [],
   })
 
@@ -116,6 +118,8 @@ function buildMonthlySummary(planData) {
       paid: 0,
       pending: 0,
       saving: 0,
+      expenses: [],
+      expenseTotal: 0,
       items: [],
     }
 
@@ -136,6 +140,28 @@ function buildMonthlySummary(planData) {
     }
     buckets.set(key, current)
   }
+
+  expenses.forEach((expense) => {
+    const date = expense.date
+    const key = monthKey(date)
+    const current = buckets.get(key) ?? {
+      key,
+      label: monthFormat.format(new Date(date.getFullYear(), date.getMonth(), 1)),
+      income: 0,
+      outgoing: 0,
+      paid: 0,
+      pending: 0,
+      saving: 0,
+      expenses: [],
+      expenseTotal: 0,
+      items: [],
+    }
+    current.expenses.push(expense)
+    current.expenseTotal += expense.amount
+    current.outgoing += expense.amount
+    current.paid += expense.amount
+    buckets.set(key, current)
+  })
 
   const datasets = [
     { key: 'financings', type: 'Financiación', income: false },
@@ -181,12 +207,13 @@ function buildMonthlySummary(planData) {
     ...month,
     net: month.income - month.outgoing,
     saving: saved += month.saving,
+    expenses: month.expenses.sort((a, b) => b.date - a.date),
     items: month.items.sort((a, b) => b.amount - a.amount),
   }))
 }
 
-function MonthlyOverview({ planData }) {
-  const months = useMemo(() => buildMonthlySummary(planData), [planData])
+function MonthlyOverview({ planData, expenses = [] }) {
+  const months = useMemo(() => buildMonthlySummary(planData, expenses), [planData, expenses])
   const currentKey = monthKey(new Date())
   const [selectedKey, setSelectedKey] = useState(currentKey)
   const selectedMonth = months.find((month) => month.key === selectedKey) ?? months.find((month) => month.key === currentKey) ?? months[0]
@@ -211,7 +238,14 @@ function MonthlyOverview({ planData }) {
         <article><span>Te queda por pagar</span><strong>{money.format(selectedMonth.pending)}</strong><small>Cuotas pendientes</small></article>
         <article><span>Ahorro acumulado</span><strong>{money.format(selectedMonth.saving)}</strong><small>Después de ajustes</small></article>
       </div>
-      <div className="month-card">
+      <section className="monthly-expenses" aria-label={`Gastos de ${selectedMonth.label}`}>
+        <div className="monthly-expenses-heading"><div><h3>Gastos del mes</h3><p>Gastos reales registrados fuera de los movimientos planificados.</p></div><strong>{money.format(selectedMonth.expenseTotal)}</strong></div>
+        <div className="expense-list">
+          {selectedMonth.expenses.map((expense) => <div className="expense-item" key={expense.id}><div><strong>{expense.concept}</strong><span>{expense.category} · {dateFormat.format(expense.date)}</span></div><strong>{money.format(expense.amount)}</strong></div>)}
+          {!selectedMonth.expenses.length && <div className="empty">No hay gastos registrados este mes.</div>}
+        </div>
+      </section>
+        <div className="month-card">
         <div className="month-card-top">
           <div><h3>Movimientos del mes</h3><p>{selectedMonth.items.length} conceptos registrados</p></div>
           <span className="monthly-income">Ingresos {money.format(selectedMonth.income)}</span>
@@ -293,7 +327,7 @@ function App() {
   const [planData, setPlanData] = useState({})
   const [planStatus, setPlanStatus] = useState({})
   const [planError, setPlanError] = useState({})
-  const [view, setView] = useState('financings')
+  const [view, setView] = useState('monthly')
   const [selectedPlan, setSelectedPlan] = useState(null)
 
   const load = async () => {
@@ -394,7 +428,7 @@ function App() {
           {!visible.length && <tr><td colSpan="4" className="empty">No hay gastos que coincidan con este filtro.</td></tr>}
         </tbody></table></div>}
       </section>
-    </> : view === 'monthly' ? <MonthlyOverview planData={planData} /> : (selectedPlan ? <PlanDetail title={activeTab.label} plan={selectedPlan} onBack={() => setSelectedPlan(null)} /> : <PlanList title={activeTab.label} items={selectedPlans} onSelect={setSelectedPlan} status={currentPlanStatus} error={currentPlanError} onRetry={() => loadPlan(view)} />)}
+    </> : view === 'monthly' ? <MonthlyOverview planData={planData} expenses={expenses} /> : (selectedPlan ? <PlanDetail title={activeTab.label} plan={selectedPlan} onBack={() => setSelectedPlan(null)} /> : <PlanList title={activeTab.label} items={selectedPlans} onSelect={setSelectedPlan} status={currentPlanStatus} error={currentPlanError} onRetry={() => loadPlan(view)} />)}
   </main>
 }
 

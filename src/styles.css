@@ -54,6 +54,18 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } th { color: 
 .monthly-income { color: #697386; font-size: .75rem; font-weight: 700; }
 .month-card-top h3 { margin: 0; color: #202a40; font-size: 1rem; }
 .month-card-top p { margin: 4px 0 0; color: #8b94a4; font-size: .76rem; }
+.monthly-expenses { border: 1px solid #eadfce; border-radius: 16px; background: #fffaf3; overflow: hidden; }
+.monthly-expenses-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 17px 18px; border-bottom: 1px solid #f0e5d7; }
+.monthly-expenses-heading h3 { margin: 0; color: #6d4b2d; font-size: 1rem; }
+.monthly-expenses-heading p { margin: 5px 0 0; color: #96785d; font-size: .75rem; }
+.monthly-expenses-heading > strong { color: #9a5723; font-size: 1.25rem; white-space: nowrap; }
+.expense-list { display: grid; }
+.expense-item { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 13px 18px; border-bottom: 1px solid #f2e9de; }
+.expense-item:last-child { border-bottom: 0; }
+.expense-item div { display: grid; gap: 3px; min-width: 0; }
+.expense-item div strong { overflow: hidden; color: #493724; font-size: .82rem; text-overflow: ellipsis; white-space: nowrap; }
+.expense-item span { color: #a1876c; font-size: .7rem; }
+.expense-item > strong { color: #6f4526; font-size: .82rem; white-space: nowrap; }
 
 @media (max-width: 700px) {
 	body { overflow-x: hidden; }
@@ -90,6 +102,9 @@ table { width: 100%; border-collapse: collapse; font-size: .9rem; } th { color: 
 	.month-card { padding: 15px; }
 	.month-card-top { align-items: start; }
 	.monthly-income { text-align: right; }
+	.monthly-expenses-heading { align-items: start; padding: 15px; }
+	.monthly-expenses-heading > strong { font-size: 1.05rem; }
+	.expense-item { padding: 12px 15px; }
 	.financing-actions { display: grid; grid-template-columns: 44px minmax(0, 1fr); align-items: stretch; width: 100%; }
 	.financing-actions .refresh { width: 44px; height: 44px; padding: 0; }
 	.financing-actions .remaining-total { min-width: 0; }

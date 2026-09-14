@@ -1,0 +1,20 @@
+{
+  "name": "PL$ · Finanzas personales",
+  "short_name": "PL$",
+  "description": "Control personal de gastos, pagos, ingresos y ahorro.",
+  "lang": "es",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f7f8fc",
+  "theme_color": "#242447",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
