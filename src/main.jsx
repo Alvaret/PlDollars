@@ -230,7 +230,7 @@ function buildMonthlySummary(planData, expenses) {
   }))
 }
 
-function MonthlyOverview({ planData, expenses = [] }) {
+function MonthlyOverview({ planData, expenses = [], onRefresh, refreshing }) {
   const months = useMemo(() => buildMonthlySummary(planData, expenses), [planData, expenses])
   const currentKey = monthKey(new Date())
   const [selectedKey, setSelectedKey] = useState(currentKey)
@@ -245,7 +245,7 @@ function MonthlyOverview({ planData, expenses = [] }) {
   return <>
     <section className="financing-overview">
       <div><p className="eyebrow">RESUMEN MENSUAL</p><h1>Flujo del mes</h1><p className="subtitle">Revisa los pagos de un mes y lo que queda después.</p></div>
-      <label className="monthly-selector"><span>Seleccionar mes</span><select value={selectedMonth.key} onChange={(event) => setSelectedKey(event.target.value)}>{months.map((month) => <option key={month.key} value={month.key}>{month.label}</option>)}</select></label>
+      <div className="monthly-controls"><button className="refresh" onClick={onRefresh} disabled={refreshing} aria-label="Actualizar todos los datos">↻ <span>{refreshing ? 'Actualizando…' : 'Actualizar'}</span></button><label className="monthly-selector"><span>Seleccionar mes</span><select value={selectedMonth.key} onChange={(event) => setSelectedKey(event.target.value)}>{months.map((month) => <option key={month.key} value={month.key}>{month.label}</option>)}</select></label></div>
     </section>
 
     <section className="monthly-view" aria-label={`Resumen de ${selectedMonth.label}`}>
@@ -345,6 +345,7 @@ function App() {
   const [planData, setPlanData] = useState({})
   const [planStatus, setPlanStatus] = useState({})
   const [planError, setPlanError] = useState({})
+  const [refreshing, setRefreshing] = useState(false)
   const [view, setView] = useState('monthly')
   const [selectedPlan, setSelectedPlan] = useState(null)
 
@@ -386,6 +387,12 @@ function App() {
       setPlanError((current) => ({ ...current, [tabId]: err.message || 'No se han podido cargar los datos.' }))
       setPlanStatus((current) => ({ ...current, [tabId]: 'error' }))
     }
+  }
+
+  const refreshAll = async () => {
+    setRefreshing(true)
+    await Promise.all([load(), ...PLAN_TABS.map((tab) => loadPlan(tab.id))])
+    setRefreshing(false)
   }
 
   useEffect(() => { load() }, [])
@@ -451,7 +458,7 @@ function App() {
           {!visible.length && <tr><td colSpan="4" className="empty">No hay gastos que coincidan con este filtro.</td></tr>}
         </tbody></table></div>}
       </section>
-    </> : view === 'monthly' ? <MonthlyOverview planData={planData} expenses={expenses} /> : (selectedPlan ? <PlanDetail title={activeTab.label} plan={selectedPlan} onBack={() => setSelectedPlan(null)} /> : <PlanList title={activeTab.label} items={selectedPlans} onSelect={setSelectedPlan} status={currentPlanStatus} error={currentPlanError} onRetry={() => loadPlan(view)} />)}
+    </> : view === 'monthly' ? <MonthlyOverview planData={planData} expenses={expenses} onRefresh={refreshAll} refreshing={refreshing} /> : (selectedPlan ? <PlanDetail title={activeTab.label} plan={selectedPlan} onBack={() => setSelectedPlan(null)} /> : <PlanList title={activeTab.label} items={selectedPlans} onSelect={setSelectedPlan} status={currentPlanStatus} error={currentPlanError} onRetry={() => loadPlan(view)} />)}
   </main>
 }
 
