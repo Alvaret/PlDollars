@@ -37,7 +37,7 @@ function normalize(data) {
   return rows.map((row, index) => ({
     id: pick(row, ['id']) ?? index,
     date: new Date(pick(row, ['fecha', 'date', 'createdat', 'timestamp']) ?? Date.now()),
-    concept: pick(row, ['concepto', 'descripcion', 'descripción', 'nombre', 'concept', 'description']) ?? 'Sin concepto',
+    concept: String(pick(row, ['concepto', 'descripcion', 'descripción', 'nombre', 'concept', 'description']) ?? 'Sin concepto'),
     category: pick(row, ['categoria', 'categoría', 'category', 'tipo']) ?? 'Otros',
     amount: Math.abs(number(pick(row, ['importe', 'monto', 'cantidad', 'amount', 'valor', 'gasto']))),
   })).filter((item) => !Number.isNaN(item.date.getTime()))
